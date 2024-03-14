@@ -67,8 +67,9 @@ def get_chain(chunks):
 
 def get_llm_response(llm_response):
     print(f"Chatbot: {llm_response['result']}")
+    print(f"(Details): {source}")
     for source in llm_response['source_documents'][0].metadata['ans'].split('.')[:2]:
-        print(f"\n(Details): {source}")
+        print(source)
 
 def save_conversation_history(conversation_history):
     with open(conversation_history_path, "w") as file:
@@ -81,37 +82,37 @@ def main():
     #loader = WebBaseLoader(e_path)
     documents = loader.load()
     chunks = get_text_chunk(documents)
-    get_vector_store(chunks)
+    vectordb = get_vector_store(chunks)
 
     qa_chain = get_chain(chunks)
 
-    # 사용자 입력 받기
-    user_input = input("You: ")
-    
-    # 대화 기록에 사용자 입력 추가
-    conversation_history["user_input"] = user_input 
-    save_conversation_history(conversation_history)
+    flag = 0
+    while True:
+        # 사용자 입력 받기
+        user_input = input("You: ")
         
-    # 챗봇 응답 출력
-    llm_response = qa_chain(user_input)
-    get_llm_response(llm_response)
-    
-    conversation_history["bot_response"] = llm_response["source_documents"][0].metadata["ans"]
-    save_conversation_history(conversation_history)
-    '''
+        # 대화 기록에 사용자 입력 추가
+        conversation_history["user_input"] = user_input 
+        save_conversation_history(conversation_history)
+            
+        # 챗봇 응답 출력
+        if flag == 0:
+            llm_response = qa_chain(user_input)
+            get_llm_response(llm_response)
+            flag += 1
         else:
             user_input = user_input + conversation_history["bot_response"]
 
             # 이전 대화 맥락에서 답을 찾도록 함 
-            vec = vectordb.as_retriever(search_kwargs={"k":1})
-                                                       #"filter": {"source":'./conversation_history.json'}})
-            qa_chain = RetrievalQA.from_chain_type(llm=llm,
-                                       chain_type="stuff",
-                                       retriever=vec,
-                                       return_source_documents=True)
+            qa_chain = RetrievalQA.from_chain_type(llm=OpenAI(),
+                                        chain_type="stuff",
+                                        retriever=vectordb,
+                                        return_source_documents=True)
             llm_response = qa_chain(user_input)
-    '''
+            get_llm_response(llm_response)
+        conversation_history["bot_response"] = llm_response["source_documents"][0].metadata["ans"]
+        save_conversation_history(conversation_history)
 
-if __name__ == "__main__": 
-    while True:
-        main()
+
+if __name__ == "__main__":
+    main()
